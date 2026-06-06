@@ -485,10 +485,20 @@ export function Autocomplete(props: {
     ),
   )
 
-  const commands = createMemo((): AutocompleteOption[] => {
-    const results: AutocompleteOption[] = [...slashes(), workflowCommandOption(props.input())]
+  // Separate resource feeding the direct `/<name>` slash commands: enabled the
+  // moment the `/` slash menu is visible (not just inside a `/workflow` context),
+  // so discovered workflows appear alongside built-in slash commands. Cheap and
+  // cached; listWorkflowInfos already drops invalid entries.
+  const [slashCommandWorkflowInfos] = createResource(
+    () => store.visible === "/",
+    (enabled) => listWorkflowInfos(sdk.client.workflow, enabled),
+    { initialValue: [] },
+  )
 
-    for (const serverCommand of sync.data.command) {
+  const commands = createMemo<AutocompleteOption[]>(() => {
+    const results: AutocompleteOption[] = [...(slashes() ?? []), workflowCommandOption(props.input())]
+
+    for (const serverCommand of sync.data.command ?? []) {
       if (serverCommand.source === "skill") continue
       const label = serverCommand.source === "mcp" ? ":mcp" : ""
       results.push({
@@ -511,7 +521,7 @@ export function Autocomplete(props: {
     // `/workflow <name>` (the existing parseWorkflowCommand dispatch) — the helper
     // is pure, so the onSelect that inserts the routed text is attached here.
     const existingCommandNames = new Set(results.map((item) => item.display.replace(/^\//, "").replace(/:mcp$/, "")))
-    for (const option of workflowCommandOptions(slashCommandWorkflowInfos(), existingCommandNames)) {
+    for (const option of workflowCommandOptions(slashCommandWorkflowInfos() ?? [], existingCommandNames)) {
       const name = option.value!
       results.push({
         ...option,
@@ -533,7 +543,7 @@ export function Autocomplete(props: {
       ...item,
       display: item.display.padEnd(max + 2),
     }))
-  })
+  }, [])
 
   const [workflowInfos] = createResource(
     () => workflowNameSearch() !== undefined || workflowArgSearch() !== undefined,
@@ -541,17 +551,7 @@ export function Autocomplete(props: {
     { initialValue: [] },
   )
 
-  // Separate resource feeding the direct `/<name>` slash commands: enabled the
-  // moment the `/` slash menu is visible (not just inside a `/workflow` context),
-  // so discovered workflows appear alongside built-in slash commands. Cheap and
-  // cached; listWorkflowInfos already drops invalid entries.
-  const [slashCommandWorkflowInfos] = createResource(
-    () => store.visible === "/",
-    (enabled) => listWorkflowInfos(sdk.client.workflow, enabled),
-    { initialValue: [] },
-  )
-
-  const options = createMemo((prev: AutocompleteOption[] | undefined) => {
+  const options = createMemo((prev: AutocompleteOption[]) => {
     const filesValue = files()
     const referenceMatchValue = referenceMatch()
     const agentsValue = agents()
@@ -609,7 +609,7 @@ export function Autocomplete(props: {
       .map((arr) => arr.obj)
 
     return [...fuzziedNonFiles, ...fileOptions].slice(0, 10)
-  })
+  }, [])
 
   createEffect(() => {
     filter()

@@ -261,7 +261,7 @@ export function useCommandSlashes(): Accessor<readonly CommandSlashEntry[]> {
   )
 
   return createMemo<CommandSlashEntry[]>(() =>
-    entries().flatMap((entry) => {
+    (entries() ?? []).flatMap((entry) => {
       const slashName = entry.command.slashName
       if (typeof slashName !== "string" || !slashName) return []
       const slashAliases = entry.command.slashAliases
@@ -279,5 +279,6 @@ export function useCommandSlashes(): Accessor<readonly CommandSlashEntry[]> {
         onSelect: () => keymap.dispatchCommand(entry.command.name),
       }
     }),
+    [],
   )
 }
